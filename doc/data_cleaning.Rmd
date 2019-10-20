@@ -1,0 +1,27 @@
+---
+title: "data_cleaning"
+author: "Shijie Zhang"
+date: "October 3, 2019"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+listingdf <- read.csv("../data/listings.csv")
+listings <- listingdf %>% select(id,name,neighbourhood_group_cleansed,                              latitude,longitude,property_type,room_type,
+      price,review_scores_rating, accommodates, bedrooms, bathrooms) %>%
+                          drop_na()
+colnames(listings) <- c("id", "name","neighbourhood","latitude",
+                        "longitude","property_type","room_type",                                          "price","rating","accommodates", "bedrooms", "bathrooms")
+listings$price <- as.numeric(gsub(pattern="\\$|\\,|\\.", x=listings$price, replacement=""))/100
+```
+
+```{r}
+save(listings, file="../output/cleaned_listings.RData")
+```
+
+
+
