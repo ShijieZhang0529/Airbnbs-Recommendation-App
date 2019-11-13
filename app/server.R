@@ -1,14 +1,20 @@
 library(shiny)
 library(leaflet)
+library(leaflet.extras)
 library(tidyverse)
+library(ggmap)
+library(DT)
+library(geosphere)
+library(shinyalert)
 
 
 # data
 load("../output/cleaned_listings.RData")
+load("../output/cleaned_listings_table.RData")
 load("../output/bus.stop.RData")
 load("../output/subway_station.RData")
 load("../output/markets.RData")
-
+register_google("AIzaSyA8OuCvy04PC3N-K9y6DdEc32hUpNyUrl8")
 coordinates <- as.data.frame(matrix(c(-73.88173,40.84328,
                                       -73.983,40.7639,
                                       -73.95732,40.64429,
@@ -34,13 +40,18 @@ shinyServer(function(input, output) {
   # main map 
   output$map <- renderLeaflet({
     leaflet() %>% 
-      setView(-73.983,40.7639,zoom = 13) %>% 
+      setView(-73.973,40.7639,zoom = 13) %>% 
        addProviderTiles(providers$Esri.WorldTopoMap) %>%
-       addMarkers(
+       addCircleMarkers(
         data = basefilter(),
         clusterOptions = markerClusterOptions(),
         lng = ~longitude,
         lat = ~latitude,
+        radius = 5,
+        #stroke = FALSE,
+        #fillColor = "green",
+        color = "green",
+        #fillOpacity = 0.8,
         popup = paste("<b>Name:</b>", basefilter()$name, "<br/>",
                       "<b>Type:</b>", basefilter()$property_type, "<br/>",
                       "<b>Price:</b>", paste("$",basefilter()$price, sep=""),"<br/>",
@@ -78,11 +89,16 @@ shinyServer(function(input, output) {
    observe({
      leafletProxy("map") %>% clearGroup("listingscluster") %>%
        setView(coordinatefilter1(), coordinatefilter2(), zoom = 13) %>%
-       addMarkers(
+       addCircleMarkers(
          data = boroughfilter(),
          clusterOptions = markerClusterOptions(),
          lng = ~longitude,
          lat = ~latitude,
+         radius = 5,
+         #stroke = FALSE,
+         #fillColor = "green",
+         color = "green",
+         #fillOpacity = 0.8,
          popup = paste("<b>Name:</b>", boroughfilter()$name, "<br/>",
                        "<b>Type:</b>", boroughfilter()$property_type, "<br/>",
                        "<b>Price:</b>", paste("$",boroughfilter()$price, sep=""),"<br/>",
@@ -97,11 +113,16 @@ shinyServer(function(input, output) {
    observe({
      leafletProxy("map") %>% clearGroup("listingscluster") %>%
        #setView(coordinatefilter1(), coordinatefilter2(), zoom = 12) %>%
-       addMarkers(
+       addCircleMarkers(
          data = listingfilter(),
          clusterOptions = markerClusterOptions(),
          lng = ~longitude,
          lat = ~latitude,
+         radius = 5,
+         #stroke = FALSE,
+         #fillColor = "green",
+         #fillOpacity = 0.8,
+         color = "green",
          popup = paste("<b>Name:</b>", listingfilter()$name, "<br/>",
                        "<b>Type:</b>", listingfilter()$property_type, "<br/>",
                        "<b>Price:</b>", paste("$",listingfilter()$price, sep=""),"<br/>",
@@ -200,13 +221,17 @@ shinyServer(function(input, output) {
    observeEvent(input$reset, {
      proxy <- leafletProxy("map")
      proxy %>% 
-       setView(-73.983,40.7639,zoom = 13) %>% 
+       setView(-73.973,40.7639,zoom = 13) %>% 
        removeMarker(layerId="1") %>%
-       addMarkers(
+       addCircleMarkers(
          data = basefilter(),
          clusterOptions = markerClusterOptions(),
          lng = ~longitude,
          lat = ~latitude,
+         radius = 5,
+         stroke = FALSE,
+         fillColor = "green",
+         fillOpacity = 0.8,
          popup = paste("<b>Name:</b>", basefilter()$name, "<br/>",
                        "<b>Type:</b>", basefilter()$property_type, "<br/>",
                        "<b>Price:</b>", paste("$",basefilter()$price, sep=""),"<br/>",
@@ -291,8 +316,10 @@ shinyServer(function(input, output) {
 
        listings.subset$name <- action
        listings.subset$price <- paste("$", listings.subset$price, sep="")
-       output$rank <- renderDataTable(listings.subset[,c("name","property_type","price","rating")], 
-                                      escape=FALSE,
+       output$rank <- DT::renderDataTable(listings.subset[,c("name","property_type","price","rating")], 
+                                          colnames = c("name","property type","price","rating"),
+                                          rownames= FALSE,
+                                          escape=FALSE,
                                       options=list(
                                         scrollX=T,
                                         pageLength = 6,
@@ -301,7 +328,9 @@ shinyServer(function(input, output) {
 
      }
      else{
-       output$rank <- renderDataTable(listings.subset[,c("name","property_type","price","rating")],
+       output$rank <- DT::renderDataTable(listings.subset[,c("name","property_type","price","rating")],
+                                          colnames = c("name","property type","price","rating"),
+                                          rownames= FALSE,
                                       options=list(
                                         scrollX=T,
                                         pageLength = 6,
@@ -401,4 +430,189 @@ shinyServer(function(input, output) {
      })
    })
    
+   ##### Second Page 
+   output$map1 <- renderLeaflet({
+     leaflet() %>% 
+       setView(-73.970,40.7639,zoom = 13) %>% 
+       addProviderTiles(providers$Esri.WorldTopoMap)
+       
+   })
+   
+   
+   #function to select the data
+   get_candidate <- function(data,Lon0,Lat0,r){
+     coords <- cbind(data$longitude,data$latitude)
+     dis <- distm(coords,c(Lon0,Lat0), fun = distHaversine)
+     Ind <- dis<r
+     return(data[Ind,])
+   }
+   
+   randomchoice <- function(data){
+     n <- nrow(data)
+     if (n>=5){
+       index <- sample(1:n,5, replace = F)
+     }
+     else{
+       index <- c(1:n)
+     }
+     return(data[index,])
+   }
+   
+   icon_make <- awesomeIcons(
+     icon = 'times-circle',
+     iconColor = "black",
+     library = "fa",
+     markerColor = "orange"
+   )
+   
+   coords <- reactiveValues(long = NULL, lat = NULL)
+   
+   observeEvent(input$submit,{
+     if (input$location=="Current Location"){
+  
+       leafletProxy("map1") %>%
+         addControlGPS(options = gpsOptions(position = "topleft", activate = TRUE, 
+                                            autoCenter = TRUE, maxZoom = 15, 
+                                            setView = TRUE)) %>%
+         activateGPS()
+       
+      #observe(
+      #   print(input$map1_gps_located$coordinates$lat)
+      # )
+       
+     }
+     
+     else{
+       coord <- geocode(input$location)
+       #output$action= renderPrint({coord})
+       coords$lat <-as.numeric(coord[2])
+       coords$long <-as.numeric(coord[1])
+       if(is.na(coords$lat)&is.na(coords$long)){ 
+         shinyalert("Please enter a valid Address!",type="error")
+       }
+       else{
+         leafletProxy("map1") %>%
+           deactivateGPS() %>%
+           clearGroup("currentloc") %>%
+           clearGroup("recommends") %>%
+           clearGroup("plans") %>%
+           setView(coords$long, coords$lat, zoom = 15) %>%
+           addAwesomeMarkers(lng=coords$long,
+                      lat=coords$lat,
+                      #radius = 6,
+                      #stroke = FALSE,
+                      #fillColor = "red",
+                      #fillOpacity = 0.8,
+                      icon = icon_make,
+                      label = input$location,
+                      group="currentloc")
+       }
+     }
+     
+     observeEvent(input$update, {
+       
+       if (input$location=="Current Location"){
+         data_selected <- get_candidate(data=listingfilter(), Lon0=input$map1_gps_located$coordinates$lng,Lat0=input$map1_gps_located$coordinates$lat,r=input$distance*1000)
+    
+       }
+       
+       else{
+         data_selected <- get_candidate(data=listingfilter(), Lon0=coords$long, Lat0=coords$lat,r=input$distance*1000)
+         
+        }
+       
+         leafletProxy("map1") %>%
+         clearGroup("recommends") %>%
+         clearGroup("plans") %>% 
+         addCircleMarkers(
+           data = data_selected,
+           #clusterOptions = markerClusterOptions(),
+           lng = ~longitude,
+           lat = ~latitude,
+           radius = 5,
+           stroke = FALSE,
+           fillColor = "navy",
+           fillOpacity = 0.1,
+           popup = paste("<b>Name:</b>", listingfilter()$name, "<br/>",
+                         "<b>Type:</b>", listingfilter()$property_type, "<br/>",
+                         "<b>Price:</b>", paste("$",listingfilter()$price, sep=""),"<br/>",
+                         "<b>Bedroom:</b>", listingfilter()$bedroom, "<br/>",
+                         "<b>Bathroom:</b>", listingfilter()$bathroom, "<br/>"
+           ),
+           group="recommends"
+         )
+         
+        
+        observeEvent(input$recomd,{
+        
+        data_recommended <- randomchoice(data_selected)
+        LONs <- c(data_recommended[,c("longitude")])
+        LATs<- c(data_recommended[,c("latitude")])
+        
+        if (any(is.na(LONs))){
+          output$choice <- renderText("No Airbnbs meet your requirments")
+        }
+        
+        else {
+         data_recommended$price <- paste("$", data_recommended$price, sep="")
+         output$choice <- renderPrint(
+           for (i in 1:nrow(data_recommended)){
+             cat(paste("Option",i))
+             answer <- as.data.frame(t(data_recommended[i, c("price","room_type","accommodates")]))
+             rownames(answer) <- c("Price:", "Room Type:", "Accommodates:")
+             colnames(answer) <- NULL
+             print(answer)
+             cat("\n")
+           })
+
+         leafletProxy('map1') %>%
+           clearGroup("plans") %>%
+           clearGroup("recommends") %>%
+           addMarkers(lng = LONs[1:nrow(data_recommended)],
+                            lat=LATs[1:nrow(data_recommended)],
+                            icon=icons(
+                              iconUrl="airbnb.jpg",
+                              iconWidth = 15, 
+                              iconHeight = 15),
+                            group = "plans",
+                            popup = paste("<b>Name:</b>", data_recommended$name, "<br/>",
+                                          "<b>Type:</b>", data_recommended$property_type, "<br/>",
+                                          "<b>Price:</b>", data_recommended$price,"<br/>",
+                                          "<b>Bedroom:</b>", data_recommended$bedroom, "<br/>",
+                                          "<b>Bathroom:</b>", data_recommended$bathroom, "<br/>")
+                            )
+        }
+  
+      },ignoreInit=T)
+     },ignoreInit=T)
+   })
+
+   ### Page 4
+   listings_table$price <- paste("$", listings_table$price, sep="")
+   listings_table$security_deposit <- paste("$", listings_table$security_deposit, sep="")
+   
+   output$tablesummary <- DT::renderDataTable(listings_table,
+                                              colnames=c("Name","Neighbourhood","Price","Security Deposit",
+                                                         "Property Type","Room Type","Rating","Cleanliness Score",
+                                                         "Location Score","Checkin Score","Website", 
+                                                         "Accommodates", "Bedrooms", "Bathrooms"),
+                                              rownames= FALSE,
+                                              options=list(
+                                                scrollX=T,
+                                                pageLength = 6,
+                                                lengthMenu = c(5, 10, 20, 50, 100)))
+  
+  
 })
+
+
+
+      
+      
+      
+      
+      
+      
+      
+      
+      
