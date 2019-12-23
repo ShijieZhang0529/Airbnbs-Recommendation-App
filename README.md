@@ -8,10 +8,6 @@
 ![panel4](fig/panel4.png)
 
 
-## **Dataset**: 
-
-The original datasets can be found [here](http://insideairbnb.com/get-the-data.html). 
-
 ## **Project summary**: 
 
 I built a shiny app to assit users in choosing Airbnb rentals they would like to stay in New York City and give them recommendations. I also integrated datasets such as buses, subways and markets to visualize the places in maps in order to further enhance users' experience.
@@ -23,6 +19,10 @@ Recommendation Page: This page provides random travel suggestions for users base
 
 Data Page: Users can dig into detailed information of the Airbnb rentals in NYC.
 
+
+## **Dataset**: 
+
+The original datasets can be found [here](http://insideairbnb.com/get-the-data.html). 
 
 
 Following [suggestions](http://nicercode.github.io/blog/2013-04-05-projects/) by [RICH FITZJOHN](http://nicercode.github.io/about/#Team) (@richfitz). This folder is orgarnized as follows.
